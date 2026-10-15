@@ -272,4 +272,15 @@ export interface QuickJSAsyncFFI {
     ctx: JSContextPointer,
     data: JSValuePointer | JSValueConstPointer,
   ) => JSValuePointer
+  QTS_CompileToByteCode: (
+    ctx: JSContextPointer,
+    js_code: BorrowedHeapCharPointer,
+    js_code_length: number,
+    filename: string,
+    evalFlags: EvalFlags,
+  ) => JSValuePointer
+  QTS_EvalByteCode: (
+    ctx: JSContextPointer,
+    data: JSValuePointer | JSValueConstPointer,
+  ) => JSValuePointer
 }

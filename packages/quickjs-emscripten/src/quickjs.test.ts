@@ -540,6 +540,56 @@ function contextTests(getContext: GetTestContext, options: ContextTestOptions = 
     })
   })
 
+  describe(".compileToByteCode / .evalByteCode", () => {
+    const compile = (source: string, filename = "bundle.js") =>
+      vm
+        .unwrapResult(vm.compileToByteCode(source, filename, { type: "global" }))
+        .consume((handle) => vm.getArrayBuffer(handle).consume((buffer) => buffer.value.slice()))
+
+    it("evaluating bytecode matches evaluating the source", () => {
+      const source = `globalThis.fromBytecode = 40; globalThis.fromBytecode + 2`
+      const bytecode = compile(source)
+      const result = vm
+        .newArrayBuffer(bytecode)
+        .consume((handle) => vm.unwrapResult(vm.evalByteCode(handle)).consume(vm.getNumber))
+      assert.equal(result, 42)
+    })
+
+    it("applies the script's side effects to the global object", () => {
+      const bytecode = compile(`var declaredWithBytecode = "Nice!"`)
+      vm.newArrayBuffer(bytecode).consume((handle) =>
+        vm.unwrapResult(vm.evalByteCode(handle)).dispose(),
+      )
+      const declared = vm.getProp(vm.global, "declaredWithBytecode")
+      assert.equal(vm.getString(declared), "Nice!")
+      declared.dispose()
+    })
+
+    it("on syntax error: returns { error: exception }", () => {
+      const result = vm.compileToByteCode(`["this", "should", "fail].join(' ')`, "bad.js", {
+        type: "global",
+      })
+      if (!result.error) {
+        assert.fail("result should be an error")
+      }
+      assertError(vm.dump(result.error), {
+        name: "SyntaxError",
+        message: "unexpected end of string",
+      })
+      result.error.dispose()
+    })
+
+    it("on malformed bytecode: returns { error: exception } and leaves the vm usable", () => {
+      const junk = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer
+      const result = vm.newArrayBuffer(junk).consume((handle) => vm.evalByteCode(handle))
+      if (!result.error) {
+        assert.fail("result should be an error")
+      }
+      result.error.dispose()
+      assert.equal(vm.unwrapResult(vm.evalCode(`1 + 1`)).consume(vm.getNumber), 2)
+    })
+  })
+
   describe(".evalCode", () => {
     it("on success: returns { value: success }", () => {
       const value = vm.unwrapResult(vm.evalCode(`["this", "should", "work"].join(' ')`))

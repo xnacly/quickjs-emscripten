@@ -2,6 +2,8 @@
 
 ## v0.33.0
 
+- Added `QuickJSContext.compileToByteCode` and `QuickJSContext.evalByteCode`, backed by new `QTS_CompileToByteCode` / `QTS_EvalByteCode` interface functions. Compile a script once, keep the bytecode, and evaluate it into each new context to pay QuickJS's read cost instead of its parse cost. On a 505 KB bundle this takes a context's startup from 57.8 ms to 5.9 ms, at the cost of holding 1435 KB of bytecode. Bytecode is tied to the exact QuickJS build that produced it, so treat it as a cache, never as a storage or wire format.
+
 - [#266](https://github.com/justjake/quickjs-emscripten/pull/266) Upgrade [bellard/quickjs](https://github.com/bellard/quickjs) to [2026-06-04+04be2460](https://github.com/bellard/quickjs/commit/04be246001599f5995fa2f2d8c91a0f198d3f34c). Review the [QuickJS changelog](https://github.com/bellard/quickjs/blob/04be246001599f5995fa2f2d8c91a0f198d3f34c/Changelog) for details.
   - Fixed heap corruption in `getOwnPropertyNames` caused by a `malloc`/`js_free` mismatch that the new small-block allocator exposed; now uses `js_malloc`.
   - Disabled QuickJS's new custom small-block allocator under Emscripten (`JS_MALLOC_LARGE_BLOCKS_ONLY`) so `setMemoryLimit` stays accurate. The release's micro-optimization speedups are unaffected.

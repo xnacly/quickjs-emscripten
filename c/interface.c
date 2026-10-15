@@ -1558,3 +1558,45 @@ JSValue *QTS_bjson_decode(JSContext *ctx, JSValueConst *data) {
   JSValue value = JS_ReadObject(ctx, buffer, length, 0);
   return jsvalue_to_heap(value);
 }
+/**
+ * Compile `js_code` without running it and return its bytecode as an ArrayBuffer.
+ * The bytecode can be evaluated in any context of a runtime built from the same
+ * QuickJS version, which lets a caller pay the parse cost once and reuse it.
+ */
+JSValue *QTS_CompileToByteCode(JSContext *ctx, BorrowedHeapChar *js_code, size_t js_code_length, const char *filename, EvalFlags evalFlags) {
+  JSValue func_obj = JS_Eval(ctx, js_code, js_code_length, filename, evalFlags | JS_EVAL_FLAG_COMPILE_ONLY);
+  if (JS_IsException(func_obj)) {
+    return jsvalue_to_heap(func_obj);
+  }
+
+  size_t length;
+  uint8_t *buffer = JS_WriteObject(ctx, &length, func_obj, JS_WRITE_OBJ_BYTECODE);
+  JS_FreeValue(ctx, func_obj);
+  if (!buffer) {
+    return jsvalue_to_heap(JS_EXCEPTION);
+  }
+
+  JSValue array = JS_NewArrayBufferCopy(ctx, buffer, length);
+  js_free(ctx, buffer);
+  return jsvalue_to_heap(array);
+}
+
+/**
+ * Evaluate bytecode produced by {@link QTS_CompileToByteCode}, given as an ArrayBuffer.
+ * Skips parsing, so a large bundle costs its read rather than its parse.
+ */
+JSValue *QTS_EvalByteCode(JSContext *ctx, JSValueConst *data) {
+  size_t length;
+  uint8_t *buffer = JS_GetArrayBuffer(ctx, &length, *data);
+  if (!buffer) {
+    return jsvalue_to_heap(JS_EXCEPTION);
+  }
+
+  JSValue func_obj = JS_ReadObject(ctx, buffer, length, JS_READ_OBJ_BYTECODE);
+  if (JS_IsException(func_obj)) {
+    return jsvalue_to_heap(func_obj);
+  }
+
+  // JS_EvalFunction consumes func_obj.
+  return jsvalue_to_heap(JS_EvalFunction(ctx, func_obj));
+}

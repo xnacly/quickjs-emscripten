@@ -1308,6 +1308,66 @@ export class QuickJSContext
   }
 
   /**
+   * Compile `code` without running it, and return its bytecode as an ArrayBuffer handle.
+   *
+   * Parsing a large bundle dominates the cost of a short-lived context. Compile once,
+   * keep the bytes, then {@link evalByteCode} them into each new context to pay the
+   * read instead of the parse.
+   *
+   * **WARNING**: bytecode is tied to the QuickJS build that produced it. Treat it as a
+   * cache keyed on the exact library version, never as a storage or wire format.
+   *
+   * ```ts
+   * const bytes = context.unwrapResult(context.compileToByteCode(bundleSource, "bundle.js"))
+   *   .consume((handle) => context.getArrayBuffer(handle).consume((b) => b.value.slice()))
+   * // later, in a fresh context:
+   * context.newArrayBuffer(bytes).consume((handle) =>
+   *   context.unwrapResult(context.evalByteCode(handle)).dispose(),
+   * )
+   * ```
+   */
+  compileToByteCode(
+    code: string,
+    filename: string = "eval.js",
+    /** See {@link EvalFlags} for number semantics. */
+    options?: number | ContextEvalOptions,
+  ): QuickJSContextResult<QuickJSHandle> {
+    const flags = evalOptionsToFlags(options) as EvalFlags
+    const resultPtr = this.memory
+      .newHeapCharPointer(code)
+      .consume((charHandle) =>
+        this.ffi.QTS_CompileToByteCode(
+          this.ctx.value,
+          charHandle.value.ptr,
+          charHandle.value.strlen,
+          filename,
+          flags,
+        ),
+      )
+    const errorPtr = this.ffi.QTS_ResolveException(this.ctx.value, resultPtr)
+    if (errorPtr) {
+      this.ffi.QTS_FreeValuePointer(this.ctx.value, resultPtr)
+      return this.fail(this.memory.heapValueHandle(errorPtr))
+    }
+    return this.success(this.memory.heapValueHandle(resultPtr))
+  }
+
+  /**
+   * Evaluate bytecode produced by {@link compileToByteCode}, passed as an ArrayBuffer handle.
+   * Equivalent to {@link evalCode} on the original source, without the parse.
+   */
+  evalByteCode(byteCode: QuickJSHandle): QuickJSContextResult<QuickJSHandle> {
+    this.runtime.assertOwned(byteCode)
+    const resultPtr = this.ffi.QTS_EvalByteCode(this.ctx.value, byteCode.value)
+    const errorPtr = this.ffi.QTS_ResolveException(this.ctx.value, resultPtr)
+    if (errorPtr) {
+      this.ffi.QTS_FreeValuePointer(this.ctx.value, resultPtr)
+      return this.fail(this.memory.heapValueHandle(errorPtr))
+    }
+    return this.success(this.memory.heapValueHandle(resultPtr))
+  }
+
+  /**
    * Throw an error in the VM, interrupted whatever current execution is in progress when execution resumes.
    * @experimental
    */
