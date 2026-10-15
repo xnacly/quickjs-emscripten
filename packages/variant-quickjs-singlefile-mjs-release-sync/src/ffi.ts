@@ -440,4 +440,23 @@ export class QuickJSFFI {
     ctx: JSContextPointer,
     data: JSValuePointer | JSValueConstPointer,
   ) => JSValuePointer = this.module.cwrap("QTS_bjson_decode", "number", ["number", "number"])
+
+  QTS_CompileToByteCode: (
+    ctx: JSContextPointer,
+    js_code: BorrowedHeapCharPointer,
+    js_code_length: number,
+    filename: string,
+    evalFlags: EvalFlags,
+  ) => JSValuePointer = this.module.cwrap("QTS_CompileToByteCode", "number", [
+    "number",
+    "number",
+    "number",
+    "string",
+    "number",
+  ])
+
+  QTS_EvalByteCode: (
+    ctx: JSContextPointer,
+    data: JSValuePointer | JSValueConstPointer,
+  ) => JSValuePointer = this.module.cwrap("QTS_EvalByteCode", "number", ["number", "number"])
 }

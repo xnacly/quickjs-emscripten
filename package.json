@@ -1,7 +1,7 @@
 {
   "name": "quickjs-emscripten-repo",
   "private": true,
-  "version": "0.32.0",
+  "version": "0.32.1-bytecode.1",
   "sideEffects": false,
   "license": "MIT",
   "type": "commonjs",
